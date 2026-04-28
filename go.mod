@@ -28,6 +28,10 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
+	github.com/mcpcat/mcpcat-go-api v0.1.7 // indirect
+	github.com/mcpcat/mcpcat-go-sdk v0.3.0 // indirect
+	github.com/mcpcat/mcpcat-go-sdk/mcpgo v0.3.0 // indirect
+	github.com/segmentio/ksuid v1.0.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.9.0 // indirect

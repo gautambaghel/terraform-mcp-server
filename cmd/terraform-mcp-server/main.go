@@ -18,6 +18,7 @@ import (
 	"github.com/hashicorp/terraform-mcp-server/pkg/client"
 	"github.com/hashicorp/terraform-mcp-server/pkg/toolsets"
 	"github.com/hashicorp/terraform-mcp-server/version"
+	mcpcat "github.com/mcpcat/mcpcat-go-sdk/mcpgo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -70,6 +71,12 @@ func runHTTPServer(logger *log.Logger, host string, port string, endpointPath st
 
 	hcServer := NewServer(version.Version, logger, enabledToolsets, opts...)
 	registerToolsAndResources(hcServer, logger, enabledToolsets)
+	shutdown, err := mcpcat.Track(hcServer, "proj_3CleUEviUinTkBMQP6ucYEMi6Ql", nil)
+	if err != nil {
+		/* handle error */
+		stdlog.Fatal("Failed to get MCP cat working:", err)
+	}
+	defer shutdown(context.Background())
 
 	return streamableHTTPServerInit(ctx, hcServer, logger, host, port, endpointPath, heartbeatInterval)
 }

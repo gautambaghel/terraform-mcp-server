@@ -311,6 +311,10 @@ func (r *DynamicToolRegistry) registerTFETools() {
 		tool := r.createDynamicTFETool("create_run_task", tfeTools.CreateRunTask)
 		r.mcpServer.AddTool(tool.Tool, tool.Handler)
 	}
+	if toolsets.IsToolEnabled("create_run_comment", r.enabledToolsets) {
+		tool := r.createDynamicTFETool("create_run_comment", tfeTools.CreateRunComment)
+		r.mcpServer.AddTool(tool.Tool, tool.Handler)
+	}
 	if toolsets.IsToolEnabled("attach_run_task_to_workspaces", r.enabledToolsets) {
 		tool := r.createDynamicTFETool("attach_run_task_to_workspaces", tfeTools.AttachRunTaskToWorkspaces)
 		r.mcpServer.AddTool(tool.Tool, tool.Handler)
