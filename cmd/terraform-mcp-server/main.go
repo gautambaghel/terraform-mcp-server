@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-mcp-server/pkg/client"
 	"github.com/hashicorp/terraform-mcp-server/pkg/toolsets"
 	"github.com/hashicorp/terraform-mcp-server/version"
-	mcpcat "github.com/mcpcat/mcpcat-go-sdk/mcpgo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -42,6 +41,7 @@ func runHTTPServer(logger *log.Logger, host string, port string, endpointPath st
 
 	// Create hooks for session management
 	hooks := &server.Hooks{}
+	attachRequestLoggingHooks(hooks, logger)
 	hooks.AddOnRegisterSession(func(ctx context.Context, session server.ClientSession) {
 		client.NewSessionHandler(ctx, session, logger)
 	})
@@ -71,14 +71,49 @@ func runHTTPServer(logger *log.Logger, host string, port string, endpointPath st
 
 	hcServer := NewServer(version.Version, logger, enabledToolsets, opts...)
 	registerToolsAndResources(hcServer, logger, enabledToolsets)
-	shutdown, err := mcpcat.Track(hcServer, "proj_3CleUEviUinTkBMQP6ucYEMi6Ql", nil)
-	if err != nil {
-		/* handle error */
-		stdlog.Fatal("Failed to get MCP cat working:", err)
-	}
-	defer shutdown(context.Background())
 
 	return streamableHTTPServerInit(ctx, hcServer, logger, host, port, endpointPath, heartbeatInterval)
+}
+
+func attachRequestLoggingHooks(hooks *server.Hooks, logger *log.Logger) {
+	if logger == nil {
+		return
+	}
+
+	var toolStartTimes sync.Map
+	hooks.AddBeforeListTools(func(ctx context.Context, id any, message *mcp.ListToolsRequest) {
+		logger.WithField("request_id", fmt.Sprintf("%v", id)).Info("Received listTools request")
+	})
+	hooks.AddBeforeCallTool(func(ctx context.Context, id any, message *mcp.CallToolRequest) {
+		requestID := fmt.Sprintf("%v", id)
+		toolStartTimes.Store(requestID, time.Now())
+		logger.WithFields(log.Fields{
+			"request_id": requestID,
+			"tool":       message.Params.Name,
+		}).Info("Received callTool request")
+	})
+	hooks.AddAfterCallTool(func(ctx context.Context, id any, message *mcp.CallToolRequest, result any) {
+		requestID := fmt.Sprintf("%v", id)
+		startedAt := time.Now()
+		if storedStart, ok := toolStartTimes.LoadAndDelete(requestID); ok {
+			if ts, ok := storedStart.(time.Time); ok {
+				startedAt = ts
+			}
+		}
+
+		fields := log.Fields{
+			"request_id":  requestID,
+			"tool":        message.Params.Name,
+			"duration_ms": time.Since(startedAt).Milliseconds(),
+		}
+
+		if res, ok := result.(*mcp.CallToolResult); ok && res.IsError {
+			logger.WithFields(fields).Warn("callTool request completed with error")
+			return
+		}
+
+		logger.WithFields(fields).Info("callTool request completed")
+	})
 }
 
 func attachMetricsHooks(hooks *server.Hooks, metricsConfig client.MetricsConfig, logger *log.Logger) {

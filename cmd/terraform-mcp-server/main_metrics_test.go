@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"reflect"
@@ -263,6 +264,52 @@ func TestAttachMetricsHooksAndRecordToolCallWithMalformedID(t *testing.T) {
 	require.Len(t, toolCalls.DataPoints, 1)
 	assert.EqualValues(t, 1, toolCalls.DataPoints[0].Value)
 	assert.Contains(t, toolCalls.DataPoints[0].Attributes.ToSlice(), attribute.String("tool.name", "malformed_id_tool"))
+}
+
+func TestAttachRequestLoggingHooksLogsToolLifecycle(t *testing.T) {
+	hooks := &mcpserver.Hooks{}
+	logger := log.New()
+	logger.SetFormatter(&log.TextFormatter{DisableTimestamp: true, DisableColors: true})
+	var buf bytes.Buffer
+	logger.SetOutput(&buf)
+
+	attachRequestLoggingHooks(hooks, logger)
+	require.Len(t, hooks.OnBeforeListTools, 1)
+	require.Len(t, hooks.OnBeforeCallTool, 1)
+	require.Len(t, hooks.OnAfterCallTool, 1)
+
+	hooks.OnBeforeListTools[0](context.Background(), "list-1", &mcp.ListToolsRequest{})
+	request := &mcp.CallToolRequest{Params: mcp.CallToolParams{Name: "test_tool"}}
+	hooks.OnBeforeCallTool[0](context.Background(), "req-1", request)
+	hooks.OnAfterCallTool[0](context.Background(), "req-1", request, mcp.NewToolResultText("ok"))
+
+	output := buf.String()
+	assert.Contains(t, output, "Received listTools request")
+	assert.Contains(t, output, "Received callTool request")
+	assert.Contains(t, output, "callTool request completed")
+	assert.Contains(t, output, "tool=test_tool")
+	assert.Contains(t, output, "request_id=req-1")
+}
+
+func TestAttachRequestLoggingHooksLogsErrorResult(t *testing.T) {
+	hooks := &mcpserver.Hooks{}
+	logger := log.New()
+	logger.SetFormatter(&log.TextFormatter{DisableTimestamp: true, DisableColors: true})
+	var buf bytes.Buffer
+	logger.SetOutput(&buf)
+
+	attachRequestLoggingHooks(hooks, logger)
+	request := &mcp.CallToolRequest{Params: mcp.CallToolParams{Name: "failing_tool"}}
+	result := mcp.NewToolResultText("failed")
+	result.IsError = true
+
+	hooks.OnBeforeCallTool[0](context.Background(), "req-2", request)
+	hooks.OnAfterCallTool[0](context.Background(), "req-2", request, result)
+
+	output := buf.String()
+	assert.Contains(t, output, "callTool request completed with error")
+	assert.Contains(t, output, "tool=failing_tool")
+	assert.Contains(t, output, "request_id=req-2")
 }
 
 func TestNewServerWithHooksOptionPassesThrough(t *testing.T) {
