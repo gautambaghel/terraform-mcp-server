@@ -56,6 +56,7 @@ var ToolToToolset = map[string]string{
 	"get_token_permissions":               Terraform,
 	"list_stacks":                         Terraform,
 	"get_stack_details":                   Terraform,
+	"create_analyzer_summary":             Terraform,
 	"list_workspace_policy_sets":          Terraform,
 	"create_change_request":               Terraform,
 }
